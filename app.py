@@ -32,11 +32,11 @@ shipping = st.sidebar.number_input(
     step=100
 )
 
-purchase_rate = st.sidebar.slider(
-    "仕入れ価格を販売価格の何％と仮定するか",
-    10,
-    90,
-    50
+purchase_price_input = st.sidebar.number_input(
+    "仕入れ価格（円）",
+    min_value=0,
+    value=0,
+    step=100
 )
 
 # =========================
@@ -111,7 +111,7 @@ if search_button:
             price = float(price)
 
             # 仮の仕入れ価格
-            purchase_price = price * purchase_rate / 100
+            purchase_price = purchase_price_input
 
             # 販売手数料
             fee = price * fee_rate / 100
