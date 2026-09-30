@@ -178,6 +178,37 @@ if st.session_state.search_results is not None:
         use_container_width=True,
         hide_index=True
     )
+        st.write("### 🔎 JANコードで仕入れ先を探す")
+
+    for index, row in df.iterrows():
+
+        jan_code = str(row["JANコード"]).strip()
+
+        if jan_code and jan_code != "nan":
+
+            st.write(
+                f"**{row['商品名']}**"
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.link_button(
+                    "NETSEAでJAN検索",
+                    f"https://www.netsea.jp/search/?keyword={jan_code}"
+                )
+
+            with col2:
+                st.link_button(
+                    "YahooでJAN検索",
+                    f"https://shopping.yahoo.co.jp/search?p={jan_code}"
+                )
+
+            with col3:
+                st.link_button(
+                    "GoogleでJAN検索",
+                    f"https://www.google.com/search?q={jan_code}"
+                )
     # =========================
     # 商品ごとの仕入れ価格
     # =========================
