@@ -459,7 +459,118 @@ if st.session_state.search_results is not None:
                 "Yahoo!ショッピングで商品を見る",
                 best["商品URL"]
             )
+# =========================
+# 仕入れ先商品との照合
+# =========================
 
+st.divider()
+
+st.header("🔗 仕入れ先商品との照合")
+
+st.write(
+    "NETSEAなどで見つけた商品の情報を入力すると、"
+    "Yahoo!ショッピングの商品との一致度を確認できます。"
+)
+
+source_name = st.text_input(
+    "仕入れ先の商品名",
+    placeholder="例：○○ オードトワレ 50ml"
+)
+
+source_price = st.number_input(
+    "仕入れ先価格（円）",
+    min_value=0,
+    value=0,
+    step=100
+)
+
+if st.button("🔍 商品を照合"):
+
+    if not source_name:
+        st.warning("仕入れ先の商品名を入力してください。")
+        st.stop()
+
+    if st.session_state.search_results is None:
+        st.warning("先にYahoo!ショッピングで商品を検索してください。")
+        st.stop()
+
+    yahoo_df = st.session_state.search_results.copy()
+
+    source_words = set(
+        source_name.lower().replace("　", " ").split()
+    )
+
+    matches = []
+
+    for _, row in yahoo_df.iterrows():
+
+        yahoo_name = str(row["商品名"])
+
+        yahoo_words = set(
+            yahoo_name.lower().replace("　", " ").split()
+        )
+
+        if source_words and yahoo_words:
+
+            common = source_words & yahoo_words
+
+            match_rate = (
+                len(common) / len(source_words) * 100
+            )
+
+        else:
+
+            match_rate = 0
+
+        matches.append({
+
+            "Yahoo商品名": yahoo_name,
+
+            "販売価格": row["販売価格"],
+
+            "一致度": match_rate,
+
+            "商品URL": row["商品URL"]
+
+        })
+
+    match_df = pd.DataFrame(matches)
+
+    match_df = match_df.sort_values(
+        "一致度",
+        ascending=False
+    ).head(10)
+
+    st.subheader("🎯 一致候補")
+
+    st.dataframe(
+        match_df[
+            [
+                "Yahoo商品名",
+                "販売価格",
+                "一致度"
+            ]
+        ].round(1),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    best_match = match_df.iloc[0]
+
+    st.success(
+        f"最も一致度が高い商品：{best_match['Yahoo商品名']}"
+    )
+
+    st.write(
+        f"一致度：**{best_match['一致度']:.1f}%**"
+    )
+
+    if best_match["商品URL"]:
+
+        st.link_button(
+            "Yahoo!ショッピングの商品を見る",
+            best_match["商品URL"]
+        )
 st.divider()
 
 st.caption(
