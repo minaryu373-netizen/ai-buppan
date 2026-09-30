@@ -166,7 +166,18 @@ if st.session_state.search_results is not None:
     st.info(
         "NETSEAなどで確認した仕入れ価格を商品ごとに入力してください。"
     )
+    st.write("### 🧾 JANコード確認")
 
+    st.dataframe(
+        df[
+            [
+                "商品名",
+                "JANコード"
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
     # =========================
     # 商品ごとの仕入れ価格
     # =========================
