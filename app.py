@@ -618,6 +618,71 @@ if st.button("🛒 仕入れ先を探す"):
             f"🔎 {name}で検索",
             url
         )
+        # =========================
+# 仕入れ検索キーワード自動生成
+# =========================
+
+st.divider()
+
+st.header("🤖 仕入れ検索キーワード自動生成")
+
+if st.session_state.search_results is not None:
+
+    df = st.session_state.search_results
+
+    product_options = {
+        f"{i + 1}. {row['商品名']}": i
+        for i, (_, row) in enumerate(df.iterrows())
+    }
+
+    selected_product = st.selectbox(
+        "Yahoo!の商品を選択",
+        list(product_options.keys())
+    )
+
+    selected_index = product_options[selected_product]
+    selected_row = df.iloc[selected_index]
+
+    product_name = str(selected_row["商品名"])
+
+    # 商品名から検索キーワードを作成
+    keywords = product_name.replace(
+        "　", " "
+    ).split()
+
+    # 短すぎる単語を除外
+    keywords = [
+        word for word in keywords
+        if len(word) >= 2
+    ]
+
+    search_keyword = " ".join(
+        keywords[:8]
+    )
+
+    st.write("### 🔎 自動生成された検索キーワード")
+
+    st.code(search_keyword)
+
+    st.info(
+        "このキーワードを仕入れ先検索に使います。"
+    )
+
+    st.link_button(
+        "🛒 NETSEAで検索",
+        f"https://www.netsea.jp/search/?keyword={search_keyword}"
+    )
+
+    st.link_button(
+        "🛒 SUPER DELIVERYで検索",
+        f"https://www.superdelivery.com/p/do/dpsl/search/?word={search_keyword}"
+    )
+
+else:
+
+    st.info(
+        "先にYahoo!ショッピングで商品を検索してください。"
+    )
 st.divider()
 
 st.caption(
