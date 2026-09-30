@@ -118,7 +118,7 @@ if search_button:
 
             review_count = review.get("count", 0)
 
-                  rows.append({
+        rows.append({
             "商品ID": i,
             "商品名": item.get("name", ""),
             "販売価格": price,
