@@ -571,6 +571,53 @@ if st.button("🔍 商品を照合"):
             "Yahoo!ショッピングの商品を見る",
             best_match["商品URL"]
         )
+        # =========================
+# 仕入れ先候補検索
+# =========================
+
+st.divider()
+
+st.header("🛒 仕入れ先候補を探す")
+
+st.write(
+    "商品名から仕入れ先候補を検索します。"
+)
+
+source_search_word = st.text_input(
+    "仕入れ先を探したい商品名",
+    placeholder="例：ワイヤレスイヤホン"
+)
+
+if st.button("🛒 仕入れ先を探す"):
+
+    if not source_search_word:
+        st.warning("商品名を入力してください。")
+        st.stop()
+
+    st.subheader("🔎 検索候補")
+
+    search_urls = {
+
+        "NETSEA":
+            f"https://www.netsea.jp/search/?keyword={source_search_word}",
+
+        "SUPER DELIVERY":
+            f"https://www.superdelivery.com/p/do/dpsl/search/?word={source_search_word}",
+
+        "Yahoo!ショッピング":
+            f"https://shopping.yahoo.co.jp/search?p={source_search_word}",
+
+        "Amazon":
+            f"https://www.amazon.co.jp/s?k={source_search_word}"
+
+    }
+
+    for name, url in search_urls.items():
+
+        st.link_button(
+            f"🔎 {name}で検索",
+            url
+        )
 st.divider()
 
 st.caption(
