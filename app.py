@@ -178,7 +178,7 @@ if st.session_state.search_results is not None:
         use_container_width=True,
         hide_index=True
     )
-        st.write("### 🔎 JANコードで仕入れ先を探す")
+    st.write("### 🔎 JANコードで仕入れ先を探す")
 
     for index, row in df.iterrows():
 
