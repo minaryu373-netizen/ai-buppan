@@ -12,7 +12,20 @@ st.title("📦 AI物販リサーチ")
 st.write("Yahoo!ショッピングの商品を検索し、商品ごとの仕入れ価格から利益を分析します。")
 
 # =========================
-# 設定
+# Session State 初期化
+# =========================
+
+if "search_results" not in st.session_state:
+    st.session_state.search_results = None
+
+if "purchase_prices" not in st.session_state:
+    st.session_state.purchase_prices = {}
+
+if "searched_query" not in st.session_state:
+    st.session_state.searched_query = ""
+
+# =========================
+# サイドバー設定
 # =========================
 
 st.sidebar.header("⚙️ 利益計算設定")
@@ -45,16 +58,18 @@ query = st.text_input(
 
 search_button = st.button("商品を検索")
 
+# =========================
+# Yahoo検索
+# =========================
+
 if search_button:
 
     if not query:
         st.warning("商品名を入力してください。")
         st.stop()
 
-    # Yahoo API
     try:
         appid = st.secrets["YAHOO_APP_ID"]
-
     except Exception:
         st.error("Yahoo!ショッピングAPIのClient IDが設定されていません。")
         st.stop()
@@ -88,10 +103,6 @@ if search_button:
             st.warning("商品が見つかりませんでした。")
             st.stop()
 
-        # =========================
-        # 商品データ作成
-        # =========================
-
         rows = []
 
         for i, item in enumerate(items):
@@ -111,311 +122,21 @@ if search_button:
                 "商品ID": i,
                 "商品名": item.get("name", ""),
                 "販売価格": price,
-                "仕入れ価格": 0,
                 "レビュー数": review_count,
                 "商品URL": item.get("url", "")
             })
 
-        df = pd.DataFrame(rows)
-
-        if df.empty:
+        if not rows:
             st.warning("分析できる商品がありませんでした。")
             st.stop()
 
-        # =========================
-        # 仕入れ価格入力
-        # =========================
+        # 検索結果を保存
+        st.session_state.search_results = pd.DataFrame(rows)
 
-        st.subheader("💰 商品ごとの仕入れ価格")
+        # 新しい検索なので仕入れ価格をリセット
+        st.session_state.purchase_prices = {}
 
-        st.info(
-            "NETSEAなどで確認した仕入れ価格を商品ごとに入力してください。"
-        )
-
-        for index in df.index:
-
-            col1, col2, col3 = st.columns([5, 2, 2])
-
-            with col1:
-                st.write(
-                    f"**{index + 1}. {df.loc[index, '商品名']}**"
-                )
-
-                st.caption(
-                    f"販売価格：{df.loc[index, '販売価格']:,.0f}円"
-                )
-
-            with col2:
-
-                purchase_price = st.number_input(
-                    "仕入れ価格",
-                    min_value=0,
-                    value=0,
-                    step=100,
-                    key=f"purchase_{index}"
-                )
-
-                df.loc[index, "仕入れ価格"] = purchase_price
-
-            with col3:
-
-                if df.loc[index, "商品URL"]:
-
-                    st.link_button(
-                        "商品を見る",
-                        df.loc[index, "商品URL"]
-                    )
-
-        # =========================
-        # 分析開始
-        # =========================
-
-        analyze_button = st.button(
-            "🔥 利益を計算してランキング"
-        )
-
-        if analyze_button:
-
-            results = []
-
-            for index, row in df.iterrows():
-
-                price = float(row["販売価格"])
-
-                purchase_price = float(row["仕入れ価格"])
-
-                review_count = int(row["レビュー数"])
-
-                # 仕入れ価格0円の商品は除外
-                if purchase_price <= 0:
-                    continue
-
-                # 販売手数料
-                fee = price * fee_rate / 100
-
-                # 利益
-                profit = (
-                    price
-                    - purchase_price
-                    - fee
-                    - shipping
-                )
-
-                # 利益率
-                profit_margin = (
-                    profit / price * 100
-                    if price > 0
-                    else 0
-                )
-
-                # ROI
-                roi = (
-                    profit / purchase_price * 100
-                    if purchase_price > 0
-                    else 0
-                )
-
-                # =========================
-                # 需要スコア
-                # =========================
-
-                demand_score = min(
-                    100,
-                    review_count / 10
-                )
-
-                # =========================
-                # 利益率スコア
-                # =========================
-
-                margin_score = max(
-                    0,
-                    min(
-                        100,
-                        profit_margin * 4
-                    )
-                )
-
-                # =========================
-                # ROIスコア
-                # =========================
-
-                roi_score = max(
-                    0,
-                    min(
-                        100,
-                        roi
-                    )
-                )
-
-                # =========================
-                # 総合スコア
-                # =========================
-
-                total_score = (
-                    margin_score * 0.35
-                    + roi_score * 0.35
-                    + demand_score * 0.30
-                )
-
-                results.append({
-
-                    "商品名": row["商品名"],
-
-                    "販売価格": price,
-
-                    "仕入れ価格": purchase_price,
-
-                    "利益": profit,
-
-                    "利益率": profit_margin,
-
-                    "ROI": roi,
-
-                    "レビュー数": review_count,
-
-                    "需要スコア": demand_score,
-
-                    "総合スコア": total_score,
-
-                    "商品URL": row["商品URL"]
-
-                })
-
-            # =========================
-            # 結果表示
-            # =========================
-
-            if not results:
-
-                st.warning(
-                    "仕入れ価格を1商品以上入力してください。"
-                )
-
-                st.stop()
-
-            result_df = pd.DataFrame(results)
-
-            # 総合スコア順
-            result_df = result_df.sort_values(
-                "総合スコア",
-                ascending=False
-            ).reset_index(drop=True)
-
-            result_df["順位"] = result_df.index + 1
-
-            # =========================
-            # TOP10
-            # =========================
-
-            st.subheader("🏆 仕入れ候補 TOP10")
-
-            top10 = result_df.head(10).copy()
-
-            display_df = top10[
-                [
-                    "順位",
-                    "商品名",
-                    "販売価格",
-                    "仕入れ価格",
-                    "利益",
-                    "利益率",
-                    "ROI",
-                    "レビュー数",
-                    "需要スコア",
-                    "総合スコア"
-                ]
-            ].copy()
-
-            display_df["販売価格"] = (
-                display_df["販売価格"]
-                .round(0)
-            )
-
-            display_df["仕入れ価格"] = (
-                display_df["仕入れ価格"]
-                .round(0)
-            )
-
-            display_df["利益"] = (
-                display_df["利益"]
-                .round(0)
-            )
-
-            display_df["利益率"] = (
-                display_df["利益率"]
-                .round(1)
-            )
-
-            display_df["ROI"] = (
-                display_df["ROI"]
-                .round(1)
-            )
-
-            display_df["需要スコア"] = (
-                display_df["需要スコア"]
-                .round(1)
-            )
-
-            display_df["総合スコア"] = (
-                display_df["総合スコア"]
-                .round(1)
-            )
-
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                hide_index=True
-            )
-
-            # =========================
-            # 1位の商品
-            # =========================
-
-            st.subheader("🥇 1位の商品")
-
-            best = result_df.iloc[0]
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            col1.metric(
-                "販売価格",
-                f"{best['販売価格']:,.0f}円"
-            )
-
-            col2.metric(
-                "仕入れ価格",
-                f"{best['仕入れ価格']:,.0f}円"
-            )
-
-            col3.metric(
-                "利益",
-                f"{best['利益']:,.0f}円"
-            )
-
-            col4.metric(
-                "ROI",
-                f"{best['ROI']:.1f}%"
-            )
-
-            st.write(
-                f"### 総合スコア：{best['総合スコア']:.1f}"
-            )
-
-            st.write(
-                f"利益率：**{best['利益率']:.1f}%**"
-            )
-
-            st.write(
-                f"レビュー数：**{best['レビュー数']}件**"
-            )
-
-            if best["商品URL"]:
-
-                st.link_button(
-                    "Yahoo!ショッピングで商品を見る",
-                    best["商品URL"]
-                )
+        st.session_state.searched_query = query
 
     except requests.exceptions.RequestException as e:
 
@@ -429,11 +150,315 @@ if search_button:
             f"エラーが発生しました: {e}"
         )
 
-else:
+# =========================
+# 検索結果表示
+# =========================
+
+if st.session_state.search_results is not None:
+
+    df = st.session_state.search_results
+
+    st.subheader(
+        f"🔎 「{st.session_state.searched_query}」の検索結果"
+    )
 
     st.info(
-        "商品名を入力して「商品を検索」を押してください。"
+        "NETSEAなどで確認した仕入れ価格を商品ごとに入力してください。"
     )
+
+    # =========================
+    # 商品ごとの仕入れ価格
+    # =========================
+
+    for index, row in df.iterrows():
+
+        col1, col2, col3 = st.columns([5, 2, 2])
+
+        with col1:
+
+            st.write(
+                f"**{index + 1}. {row['商品名']}**"
+            )
+
+            st.caption(
+                f"販売価格：{row['販売価格']:,.0f}円"
+            )
+
+        with col2:
+
+            current_value = st.session_state.purchase_prices.get(
+                index,
+                0
+            )
+
+            purchase_price = st.number_input(
+                "仕入れ価格（円）",
+                min_value=0,
+                value=int(current_value),
+                step=100,
+                key=f"purchase_price_{index}"
+            )
+
+            st.session_state.purchase_prices[index] = purchase_price
+
+        with col3:
+
+            if row["商品URL"]:
+
+                st.link_button(
+                    "商品を見る",
+                    row["商品URL"]
+                )
+
+    # =========================
+    # 分析ボタン
+    # =========================
+
+    st.divider()
+
+    analyze_button = st.button(
+        "🔥 利益を計算してランキング",
+        type="primary"
+    )
+
+    if analyze_button:
+
+        results = []
+
+        for index, row in df.iterrows():
+
+            price = float(row["販売価格"])
+
+            purchase_price = float(
+                st.session_state.purchase_prices.get(
+                    index,
+                    0
+                )
+            )
+
+            review_count = int(
+                row["レビュー数"]
+            )
+
+            # 仕入れ価格未入力はスキップ
+            if purchase_price <= 0:
+                continue
+
+            # 販売手数料
+            fee = price * fee_rate / 100
+
+            # 利益
+            profit = (
+                price
+                - purchase_price
+                - fee
+                - shipping
+            )
+
+            # 利益率
+            profit_margin = (
+                profit / price * 100
+                if price > 0
+                else 0
+            )
+
+            # ROI
+            roi = (
+                profit / purchase_price * 100
+                if purchase_price > 0
+                else 0
+            )
+
+            # =========================
+            # 需要スコア
+            # =========================
+
+            demand_score = min(
+                100,
+                review_count / 10
+            )
+
+            # =========================
+            # 利益率スコア
+            # =========================
+
+            margin_score = max(
+                0,
+                min(
+                    100,
+                    profit_margin * 4
+                )
+            )
+
+            # =========================
+            # ROIスコア
+            # =========================
+
+            roi_score = max(
+                0,
+                min(
+                    100,
+                    roi
+                )
+            )
+
+            # =========================
+            # 総合スコア
+            # =========================
+
+            total_score = (
+                margin_score * 0.35
+                + roi_score * 0.35
+                + demand_score * 0.30
+            )
+
+            results.append({
+
+                "商品名": row["商品名"],
+
+                "販売価格": price,
+
+                "仕入れ価格": purchase_price,
+
+                "利益": profit,
+
+                "利益率": profit_margin,
+
+                "ROI": roi,
+
+                "レビュー数": review_count,
+
+                "需要スコア": demand_score,
+
+                "総合スコア": total_score,
+
+                "商品URL": row["商品URL"]
+
+            })
+
+        if not results:
+
+            st.warning(
+                "仕入れ価格を1商品以上入力してください。"
+            )
+
+            st.stop()
+
+        result_df = pd.DataFrame(results)
+
+        # 総合スコア順
+        result_df = result_df.sort_values(
+            "総合スコア",
+            ascending=False
+        ).reset_index(drop=True)
+
+        result_df["順位"] = result_df.index + 1
+
+        # =========================
+        # TOP10
+        # =========================
+
+        st.subheader("🏆 仕入れ候補 TOP10")
+
+        top10 = result_df.head(10).copy()
+
+        display_df = top10[
+            [
+                "順位",
+                "商品名",
+                "販売価格",
+                "仕入れ価格",
+                "利益",
+                "利益率",
+                "ROI",
+                "レビュー数",
+                "需要スコア",
+                "総合スコア"
+            ]
+        ].copy()
+
+        display_df["販売価格"] = (
+            display_df["販売価格"].round(0)
+        )
+
+        display_df["仕入れ価格"] = (
+            display_df["仕入れ価格"].round(0)
+        )
+
+        display_df["利益"] = (
+            display_df["利益"].round(0)
+        )
+
+        display_df["利益率"] = (
+            display_df["利益率"].round(1)
+        )
+
+        display_df["ROI"] = (
+            display_df["ROI"].round(1)
+        )
+
+        display_df["需要スコア"] = (
+            display_df["需要スコア"].round(1)
+        )
+
+        display_df["総合スコア"] = (
+            display_df["総合スコア"].round(1)
+        )
+
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # =========================
+        # 1位
+        # =========================
+
+        st.subheader("🥇 1位の商品")
+
+        best = result_df.iloc[0]
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "販売価格",
+            f"{best['販売価格']:,.0f}円"
+        )
+
+        col2.metric(
+            "仕入れ価格",
+            f"{best['仕入れ価格']:,.0f}円"
+        )
+
+        col3.metric(
+            "利益",
+            f"{best['利益']:,.0f}円"
+        )
+
+        col4.metric(
+            "ROI",
+            f"{best['ROI']:.1f}%"
+        )
+
+        st.write(
+            f"### 総合スコア：{best['総合スコア']:.1f}"
+        )
+
+        st.write(
+            f"利益率：**{best['利益率']:.1f}%**"
+        )
+
+        st.write(
+            f"レビュー数：**{best['レビュー数']}件**"
+        )
+
+        if best["商品URL"]:
+
+            st.link_button(
+                "Yahoo!ショッピングで商品を見る",
+                best["商品URL"]
+            )
 
 st.divider()
 
