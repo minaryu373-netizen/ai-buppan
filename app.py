@@ -1129,3 +1129,155 @@ else:
     st.info(
         "先にYahoo!ショッピングで商品を検索してください。"
     )
+# =========================
+# 最安仕入れ候補ランキング
+# =========================
+
+st.divider()
+
+st.header("🏆 最安仕入れ候補ランキング")
+
+if st.session_state.sourcing_results:
+
+    sourcing_df = pd.DataFrame(
+        st.session_state.sourcing_results
+    )
+
+    cheapest_df = (
+        sourcing_df
+        .sort_values("仕入れ価格候補")
+        .groupby("元商品", as_index=False)
+        .first()
+    )
+
+    ranking_results = []
+
+    for _, source_row in cheapest_df.iterrows():
+
+        product_name = source_row["元商品"]
+
+        matching_rows = df[
+            df["商品名"] == product_name
+        ]
+
+        if matching_rows.empty:
+            continue
+
+        original_row = matching_rows.iloc[0]
+
+        selling_price = float(
+            original_row["販売価格"]
+        )
+
+        purchase_price = float(
+            source_row["仕入れ価格候補"]
+        )
+
+        fee = selling_price * fee_rate / 100
+
+        profit = (
+            selling_price
+            - purchase_price
+            - fee
+            - shipping
+        )
+
+        roi = (
+            profit / purchase_price * 100
+            if purchase_price > 0
+            else 0
+        )
+
+        ranking_results.append({
+
+            "商品名": product_name,
+
+            "販売価格": selling_price,
+
+            "最安仕入れ価格": purchase_price,
+
+            "利益": profit,
+
+            "ROI": roi,
+
+            "仕入れ先候補": source_row["候補商品"],
+
+            "商品URL": source_row["商品URL"]
+
+        })
+
+    if ranking_results:
+
+        ranking_df = pd.DataFrame(
+            ranking_results
+        )
+
+        ranking_df = ranking_df.sort_values(
+            "利益",
+            ascending=False
+        ).reset_index(drop=True)
+
+        ranking_df["順位"] = (
+            ranking_df.index + 1
+        )
+
+        st.dataframe(
+            ranking_df[
+                [
+                    "順位",
+                    "商品名",
+                    "販売価格",
+                    "最安仕入れ価格",
+                    "利益",
+                    "ROI",
+                    "仕入れ先候補"
+                ]
+            ].round(1),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.write("### 🥇 最も利益が大きい商品")
+
+        best = ranking_df.iloc[0]
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "販売価格",
+            f"{best['販売価格']:,.0f}円"
+        )
+
+        col2.metric(
+            "最安仕入れ",
+            f"{best['最安仕入れ価格']:,.0f}円"
+        )
+
+        col3.metric(
+            "予想利益",
+            f"{best['利益']:,.0f}円"
+        )
+
+        col4.metric(
+            "ROI",
+            f"{best['ROI']:.1f}%"
+        )
+
+        if best["商品URL"]:
+
+            st.link_button(
+                "仕入れ候補を見る",
+                best["商品URL"]
+            )
+
+    else:
+
+        st.info(
+            "ランキングを作成できる商品がありませんでした。"
+        )
+
+else:
+
+    st.info(
+        "先に「仕入れ価格候補を検索」を実行してください。"
+    )
