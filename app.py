@@ -895,6 +895,9 @@ st.divider()
 
 st.header("🤖 仕入れ価格候補を自動取得")
 
+if "sourcing_results" not in st.session_state:
+    st.session_state.sourcing_results = None
+
 if st.session_state.search_results is not None:
 
     df = st.session_state.search_results
@@ -950,39 +953,176 @@ if st.session_state.search_results is not None:
                         "商品URL": item.get("url", "")
                     })
 
-            if sourcing_results:
-
-                sourcing_df = pd.DataFrame(
-                    sourcing_results
-                )
-
-                sourcing_df = sourcing_df.sort_values(
-                    "仕入れ価格候補"
-                )
-
-                st.dataframe(
-                    sourcing_df[
-                        [
-                            "元商品",
-                            "仕入れ価格候補",
-                            "候補商品"
-                        ]
-                    ].head(30),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-            else:
-
-                st.warning(
-                    "仕入れ価格候補が見つかりませんでした。"
-                )
+            st.session_state.sourcing_results = sourcing_results
 
         except Exception as e:
 
             st.error(
                 f"価格取得中にエラーが発生しました: {e}"
             )
+
+    # =========================
+    # 価格候補表示
+    # =========================
+
+    if st.session_state.sourcing_results:
+
+        sourcing_df = pd.DataFrame(
+            st.session_state.sourcing_results
+        )
+
+        sourcing_df = sourcing_df.sort_values(
+            "仕入れ価格候補"
+        )
+
+        st.write("### 💰 自動取得した価格候補")
+
+        st.dataframe(
+            sourcing_df[
+                [
+                    "元商品",
+                    "仕入れ価格候補",
+                    "候補商品"
+                ]
+            ].head(30),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # =========================
+        # 仕入れ上限価格との照合
+        # =========================
+
+        st.write("### 🧠 仕入れ上限価格との自動照合")
+
+        target_profit = st.number_input(
+            "目標利益（円）",
+            min_value=0,
+            value=2000,
+            step=500,
+            key="auto_target_profit"
+        )
+
+        judgment_results = []
+
+        for _, source_row in sourcing_df.iterrows():
+
+            product_name = source_row["元商品"]
+
+            matching_rows = df[
+                df["商品名"] == product_name
+            ]
+
+            if matching_rows.empty:
+                continue
+
+            original_row = matching_rows.iloc[0]
+
+            selling_price = float(
+                original_row["販売価格"]
+            )
+
+            fee = selling_price * fee_rate / 100
+
+            max_purchase_price = (
+                selling_price
+                - fee
+                - shipping
+                - target_profit
+            )
+
+            source_price = float(
+                source_row["仕入れ価格候補"]
+            )
+
+            if source_price <= max_purchase_price:
+
+                judgment = "🟢 仕入れ候補"
+
+            else:
+
+                judgment = "🔴 見送り"
+
+            expected_profit = (
+                selling_price
+                - source_price
+                - fee
+                - shipping
+            )
+
+            judgment_results.append({
+
+                "商品名": product_name,
+
+                "販売価格": selling_price,
+
+                "仕入れ価格": source_price,
+
+                "仕入れ上限価格": max_purchase_price,
+
+                "予想利益": expected_profit,
+
+                "判定": judgment
+
+            })
+
+        if judgment_results:
+
+            judgment_df = pd.DataFrame(
+                judgment_results
+            )
+
+            judgment_df = judgment_df.sort_values(
+                "予想利益",
+                ascending=False
+            )
+
+            st.dataframe(
+                judgment_df[
+                    [
+                        "商品名",
+                        "販売価格",
+                        "仕入れ価格",
+                        "仕入れ上限価格",
+                        "予想利益",
+                        "判定"
+                    ]
+                ].round(0),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # =========================
+            # 仕入れ候補だけ表示
+            # =========================
+
+            profitable_df = judgment_df[
+                judgment_df["判定"] == "🟢 仕入れ候補"
+            ]
+
+            st.write("### 🟢 自動判定された仕入れ候補")
+
+            if not profitable_df.empty:
+
+                st.dataframe(
+                    profitable_df[
+                        [
+                            "商品名",
+                            "販売価格",
+                            "仕入れ価格",
+                            "仕入れ上限価格",
+                            "予想利益"
+                        ]
+                    ].round(0),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+            else:
+
+                st.info(
+                    "現在の条件では、仕入れ候補はありませんでした。"
+                )
 
 else:
 
