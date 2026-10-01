@@ -1281,3 +1281,28 @@ else:
     st.info(
         "先に「仕入れ価格候補を検索」を実行してください。"
     )
+# =========================
+# NETSEA API接続テスト
+# =========================
+
+st.divider()
+
+st.header("🏪 NETSEA卸価格データ")
+
+if st.button("🔌 NETSEA API接続テスト"):
+
+    try:
+
+        netsea_token = st.secrets["NETSEA_API_TOKEN"]
+
+        st.success("NETSEA APIトークンを読み込みました。")
+
+        st.write(
+            "API接続準備OK。次に商品検索APIを接続します。"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"NETSEA APIトークンを読み込めませんでした: {e}"
+        )
