@@ -802,3 +802,88 @@ st.caption(
     "※仕入れ価格はNETSEA等で確認した実際の価格を入力してください。"
     "利益は販売手数料と送料を差し引いて計算しています。"
 )
+# =========================
+# 仕入れ判定
+# =========================
+
+st.divider()
+
+st.header("🧠 仕入れ判定")
+
+if st.session_state.search_results is not None:
+
+    df = st.session_state.search_results
+
+    judgment_results = []
+
+    for index, row in df.iterrows():
+
+        selling_price = float(row["販売価格"])
+
+        current_purchase_price = st.session_state.purchase_prices.get(
+            index,
+            0
+        )
+
+        fee = selling_price * fee_rate / 100
+
+        profit = (
+            selling_price
+            - current_purchase_price
+            - fee
+            - shipping
+        )
+
+        if current_purchase_price <= 0:
+
+            judgment = "⚪ 仕入れ価格未入力"
+
+        elif profit >= 2000:
+
+            judgment = "🟢 仕入れ候補"
+
+        elif profit > 0:
+
+            judgment = "🟡 利益少なめ"
+
+        else:
+
+            judgment = "🔴 見送り"
+
+        judgment_results.append({
+
+            "商品名": row["商品名"],
+
+            "販売価格": selling_price,
+
+            "仕入れ価格": current_purchase_price,
+
+            "利益": profit,
+
+            "判定": judgment
+
+        })
+
+    judgment_df = pd.DataFrame(
+        judgment_results
+    )
+
+    st.dataframe(
+        judgment_df[
+            [
+                "商品名",
+                "販売価格",
+                "仕入れ価格",
+                "利益",
+                "判定"
+            ]
+        ].round(0),
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+
+    st.info(
+        "先にYahoo!ショッピングで商品を検索してください。"
+    )
