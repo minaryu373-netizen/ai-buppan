@@ -621,7 +621,77 @@ if st.button("🔍 商品を照合"):
 st.divider()
 
 st.header("🛒 仕入れ先候補を探す")
+# =========================
+# 仕入れ上限価格
+# =========================
 
+st.divider()
+
+st.header("💰 仕入れ上限価格を計算")
+
+target_profit = st.number_input(
+    "目標利益（円）",
+    min_value=0,
+    value=2000,
+    step=500
+)
+
+if st.session_state.search_results is not None:
+
+    df = st.session_state.search_results
+
+    limit_results = []
+
+    for _, row in df.iterrows():
+
+        selling_price = float(row["販売価格"])
+
+        fee = selling_price * fee_rate / 100
+
+        max_purchase_price = (
+            selling_price
+            - fee
+            - shipping
+            - target_profit
+        )
+
+        limit_results.append({
+
+            "商品名": row["商品名"],
+
+            "販売価格": selling_price,
+
+            "仕入れ上限価格": max_purchase_price,
+
+            "目標利益": target_profit
+
+        })
+
+    limit_df = pd.DataFrame(limit_results)
+
+    limit_df = limit_df.sort_values(
+        "仕入れ上限価格",
+        ascending=False
+    )
+
+    st.dataframe(
+        limit_df[
+            [
+                "商品名",
+                "販売価格",
+                "仕入れ上限価格",
+                "目標利益"
+            ]
+        ].round(0),
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+
+    st.info(
+        "先にYahoo!ショッピングで商品を検索してください。"
+    )
 st.write(
     "商品名から仕入れ先候補を検索します。"
 )
