@@ -887,3 +887,105 @@ else:
     st.info(
         "先にYahoo!ショッピングで商品を検索してください。"
     )
+# =========================
+# 仕入れ価格候補を自動取得
+# =========================
+
+st.divider()
+
+st.header("🤖 仕入れ価格候補を自動取得")
+
+if st.session_state.search_results is not None:
+
+    df = st.session_state.search_results
+
+    if st.button("🔍 仕入れ価格候補を検索"):
+
+        try:
+
+            appid = st.secrets["YAHOO_APP_ID"]
+
+            sourcing_results = []
+
+            for _, row in df.iterrows():
+
+                jan_code = str(row["JANコード"]).strip()
+
+                if not jan_code or jan_code == "nan":
+                    continue
+
+                url = "https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch"
+
+                params = {
+                    "appid": appid,
+                    "jan_code": jan_code,
+                    "results": 10,
+                    "sort": "+price"
+                }
+
+                response = requests.get(
+                    url,
+                    params=params,
+                    timeout=20
+                )
+
+                response.raise_for_status()
+
+                data = response.json()
+
+                items = data.get("hits", [])
+
+                for item in items:
+
+                    price = item.get("price")
+
+                    if price is None:
+                        continue
+
+                    sourcing_results.append({
+                        "元商品": row["商品名"],
+                        "JANコード": jan_code,
+                        "仕入れ価格候補": float(price),
+                        "候補商品": item.get("name", ""),
+                        "商品URL": item.get("url", "")
+                    })
+
+            if sourcing_results:
+
+                sourcing_df = pd.DataFrame(
+                    sourcing_results
+                )
+
+                sourcing_df = sourcing_df.sort_values(
+                    "仕入れ価格候補"
+                )
+
+                st.dataframe(
+                    sourcing_df[
+                        [
+                            "元商品",
+                            "仕入れ価格候補",
+                            "候補商品"
+                        ]
+                    ].head(30),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+            else:
+
+                st.warning(
+                    "仕入れ価格候補が見つかりませんでした。"
+                )
+
+        except Exception as e:
+
+            st.error(
+                f"価格取得中にエラーが発生しました: {e}"
+            )
+
+else:
+
+    st.info(
+        "先にYahoo!ショッピングで商品を検索してください。"
+    )
