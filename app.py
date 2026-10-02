@@ -1468,6 +1468,8 @@ if "netsea_suppliers" in st.session_state:
                 # NETSEAのレスポンス確認
                 st.write("NETSEA検索結果")
                 st.json(item_data)
+                st.write("レスポンス型:", type(item_data))
+                st.write("レスポンス内容:", item_data)
 
             except requests.exceptions.HTTPError as e:
 
