@@ -1324,9 +1324,7 @@ if st.button("🏢 承認済みサプライヤーを取得"):
             "Authorization": f"Bearer {netsea_token}"
         }
 
-        supplier_url = (
-            "https://api.netsea.jp/buyer/v1/suppliers"
-        )
+        supplier_url = "https://api.netsea.jp/buyer/v1/suppliers"
 
         response = requests.get(
             supplier_url,
@@ -1338,22 +1336,23 @@ if st.button("🏢 承認済みサプライヤーを取得"):
 
         supplier_data = response.json()
 
-suppliers = []
+        suppliers = []
 
-if isinstance(supplier_data, list):
+        if isinstance(supplier_data, list):
 
-    for block in supplier_data:
+            for block in supplier_data:
 
-        if isinstance(block, dict):
+                if isinstance(block, dict):
 
-            block_data = block.get("data", [])
+                    block_data = block.get("data", [])
 
-            if isinstance(block_data, list):
-                suppliers.extend(block_data)
+                    if isinstance(block_data, list):
+                        suppliers.extend(block_data)
 
-else:
+        elif isinstance(supplier_data, dict):
 
-    suppliers = supplier_data.get("data", [])
+            suppliers = supplier_data.get("data", [])
+
         if suppliers:
 
             st.session_state.netsea_suppliers = suppliers
@@ -1373,10 +1372,6 @@ else:
         st.error(
             f"NETSEAサプライヤー取得エラー: {e}"
         )
-
-
-if "netsea_suppliers" in st.session_state:
-
     suppliers = st.session_state.netsea_suppliers
 
     supplier_options = {
