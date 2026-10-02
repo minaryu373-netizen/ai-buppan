@@ -1306,3 +1306,229 @@ if st.button("🔌 NETSEA API接続テスト"):
         st.error(
             f"NETSEA APIトークンを読み込めませんでした: {e}"
         )
+# =========================
+# NETSEA JAN検索
+# =========================
+
+st.divider()
+
+st.header("🏪 NETSEA卸価格をJANで検索")
+
+if st.button("🏢 承認済みサプライヤーを取得"):
+
+    try:
+
+        netsea_token = st.secrets["NETSEA_API_TOKEN"]
+
+        headers = {
+            "Authorization": f"Bearer {netsea_token}"
+        }
+
+        supplier_url = (
+            "https://api.netsea.jp/buyer/v1/suppliers"
+        )
+
+        response = requests.get(
+            supplier_url,
+            headers=headers,
+            timeout=20
+        )
+
+        response.raise_for_status()
+
+        supplier_data = response.json()
+
+        suppliers = supplier_data.get("data", [])
+
+        if suppliers:
+
+            st.session_state.netsea_suppliers = suppliers
+
+            st.success(
+                f"{len(suppliers)}社のサプライヤーを取得しました。"
+            )
+
+        else:
+
+            st.warning(
+                "承認済みサプライヤーが見つかりませんでした。"
+            )
+
+    except Exception as e:
+
+        st.error(
+            f"NETSEAサプライヤー取得エラー: {e}"
+        )
+
+
+if "netsea_suppliers" in st.session_state:
+
+    suppliers = st.session_state.netsea_suppliers
+
+    supplier_options = {
+        f"{s['corp_name']}（ID: {s['id']}）": s["id"]
+        for s in suppliers
+    }
+
+    selected_supplier_name = st.selectbox(
+        "仕入れ先サプライヤーを選択",
+        list(supplier_options.keys()),
+        key="netsea_supplier_select"
+    )
+
+    selected_supplier_id = supplier_options[
+        selected_supplier_name
+    ]
+
+    jan_input = st.text_input(
+        "JANコード",
+        placeholder="例：4900000000000",
+        key="netsea_jan_input"
+    )
+
+    if st.button("🔎 NETSEAでJAN検索"):
+
+        if not jan_input:
+
+            st.warning(
+                "JANコードを入力してください。"
+            )
+
+        else:
+
+            try:
+
+                netsea_token = st.secrets[
+                    "NETSEA_API_TOKEN"
+                ]
+
+                headers = {
+                    "Authorization":
+                    f"Bearer {netsea_token}"
+                }
+
+                item_url = (
+                    "https://api.netsea.jp/buyer/v1/items"
+                )
+
+                data = {
+                    "supplier_ids":
+                    str(selected_supplier_id),
+
+                    "jan_code":
+                    jan_input.strip()
+                }
+
+                response = requests.post(
+                    item_url,
+                    headers=headers,
+                    data=data,
+                    timeout=20
+                )
+
+                response.raise_for_status()
+
+                item_data = response.json()
+
+                items = item_data.get(
+                    "data",
+                    []
+                )
+
+                if not items:
+
+                    st.warning(
+                        "このサプライヤーでは該当するJAN商品が見つかりませんでした。"
+                    )
+
+                else:
+
+                    netsea_results = []
+
+                    for item in items:
+
+                        for product_set in item.get(
+                            "set",
+                            []
+                        ):
+
+                            netsea_results.append({
+
+                                "商品名":
+                                item.get(
+                                    "product_name",
+                                    ""
+                                ),
+
+                                "JANコード":
+                                product_set.get(
+                                    "jan_code",
+                                    ""
+                                ),
+
+                                "卸価格":
+                                product_set.get(
+                                    "price"
+                                ),
+
+                                "セット価格":
+                                product_set.get(
+                                    "set_price"
+                                ),
+
+                                "在庫":
+                                product_set.get(
+                                    "sold_out_flag",
+                                    ""
+                                ),
+
+                                "商品URL":
+                                item.get(
+                                    "product_url",
+                                    ""
+                                )
+                            })
+
+                    if netsea_results:
+
+                        netsea_df = pd.DataFrame(
+                            netsea_results
+                        )
+
+                        st.success(
+                            "NETSEAから卸価格を取得しました！"
+                        )
+
+                        st.dataframe(
+                            netsea_df,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                    else:
+
+                        st.warning(
+                            "商品は見つかりましたが、価格情報がありませんでした。"
+                        )
+
+            except requests.exceptions.HTTPError as e:
+
+                st.error(
+                    f"NETSEA APIエラー: {e}"
+                )
+
+                try:
+
+                    st.json(
+                        response.json()
+                    )
+
+                except Exception:
+
+                    pass
+
+            except Exception as e:
+
+                st.error(
+                    f"エラーが発生しました: {e}"
+                )
