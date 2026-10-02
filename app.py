@@ -1338,7 +1338,10 @@ if st.button("🏢 承認済みサプライヤーを取得"):
 
         supplier_data = response.json()
 
-        suppliers = supplier_data.get("data", [])
+if isinstance(supplier_data, list):
+    suppliers = supplier_data
+else:
+    suppliers = supplier_data.get("data", [])
 
         if suppliers:
 
