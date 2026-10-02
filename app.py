@@ -1338,11 +1338,22 @@ if st.button("🏢 承認済みサプライヤーを取得"):
 
         supplier_data = response.json()
 
-if isinstance(supplier_data, list):
-    suppliers = supplier_data
-else:
-    suppliers = supplier_data.get("data", [])
+suppliers = []
 
+if isinstance(supplier_data, list):
+
+    for block in supplier_data:
+
+        if isinstance(block, dict):
+
+            block_data = block.get("data", [])
+
+            if isinstance(block_data, list):
+                suppliers.extend(block_data)
+
+else:
+
+    suppliers = supplier_data.get("data", [])
         if suppliers:
 
             st.session_state.netsea_suppliers = suppliers
