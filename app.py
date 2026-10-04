@@ -76,10 +76,18 @@ if search_button:
 
     url = "https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch"
 
+    result_count = st.sidebar.slider(
+        "Yahoo検索件数",
+        min_value=10,
+        max_value=50,
+        value=50,
+        step=10
+    )
+
     params = {
         "appid": appid,
         "query": query,
-        "results": 50,
+        "results": result_count,
         "start": 1,
         "sort": "-score",
         "condition": "new"
@@ -118,21 +126,33 @@ if search_button:
 
             review_count = review.get("count", 0)
 
-        rows.append({
-            "商品ID": i,
-            "商品名": item.get("name", ""),
-            "販売価格": price,
-            "レビュー数": review_count,
-            "JANコード": item.get("janCode", ""),
-            "商品URL": item.get("url", "")
-        })
+            rows.append({
+                "商品ID": i,
+                "商品名": item.get("name", ""),
+                "販売価格": price,
+                "レビュー数": review_count,
+                "JANコード": item.get("janCode", ""),
+                "商品URL": item.get("url", "")
+            })
 
         if not rows:
             st.warning("分析できる商品がありませんでした。")
             st.stop()
 
         # 検索結果を保存
-        st.session_state.search_results = pd.DataFrame(rows)
+        result_df = pd.DataFrame(rows)
+
+        # 同一URLの商品を重複除去
+        if "商品URL" in result_df.columns:
+            result_df = result_df.drop_duplicates(
+                subset=["商品URL"],
+                keep="first"
+            ).reset_index(drop=True)
+
+        # 商品IDを振り直す
+        result_df["商品ID"] = result_df.index
+
+        st.session_state.search_results = result_df
 
         # 新しい検索なので仕入れ価格をリセット
         st.session_state.purchase_prices = {}
@@ -161,6 +181,10 @@ if st.session_state.search_results is not None:
 
     st.subheader(
         f"🔎 「{st.session_state.searched_query}」の検索結果"
+    )
+
+    st.success(
+        f"📦 {len(df)}件の商品を取得しました。"
     )
 
     st.info(
@@ -1451,119 +1475,4 @@ if "netsea_suppliers" in st.session_state:
 
 else:
     st.info("先に「承認済みサプライヤーを取得」を押してください。")
-# -------------------------
-# サプライヤー選択
-# -------------------------
-
-if "netsea_suppliers" in st.session_state:
-
-    suppliers = st.session_state.netsea_suppliers
-
-    supplier_options = {
-        f"{s['corp_name']}（ID: {s['id']}）": s["id"]
-        for s in suppliers
-    }
-
-    selected_supplier_name = st.selectbox(
-        "仕入れ先サプライヤーを選択",
-        list(supplier_options.keys()),
-        key="netsea_supplier_select"
-    )
-
-    selected_supplier_id = supplier_options[
-        selected_supplier_name
-    ]
-
-
-    # -------------------------
-    # JAN入力
-    # -------------------------
-
-    jan_input = st.text_input(
-        "JANコード",
-        placeholder="例：4900000000000",
-        key="netsea_jan_input"
-    )
-
-
-    # -------------------------
-    # JAN検索
-    # -------------------------
-
-    if st.button("🔎 NETSEAでJAN検索"):
-
-        if not jan_input:
-
-            st.warning(
-                "JANコードを入力してください。"
-            )
-
-        else:
-
-            try:
-
-                netsea_token = st.secrets[
-                    "NETSEA_API_TOKEN"
-                ]
-
-                headers = {
-                    "Authorization":
-                    f"Bearer {netsea_token}"
-                }
-
-                item_url = (
-                    "https://api.netsea.jp/buyer/v1/items"
-                )
-
-                data = {
-                    "supplier_ids":
-                    str(selected_supplier_id),
-
-                    "jan_code":
-                    jan_input.strip()
-                }
-
-                response = requests.post(
-                    item_url,
-                    headers=headers,
-                    data=data,
-                    timeout=20
-                )
-
-                response.raise_for_status()
-
-                item_data = response.json()
-
-                # NETSEAのレスポンス確認
-                st.write("NETSEA検索結果")
-                st.json(item_data)
-                st.write("レスポンス型:", type(item_data))
-                st.write("レスポンス内容:", item_data)
-
-            except requests.exceptions.HTTPError as e:
-
-                st.error(
-                    f"NETSEA APIエラー: {e}"
-                )
-
-                try:
-
-                    st.json(
-                        response.json()
-                    )
-
-                except Exception:
-
-                    pass
-
-            except Exception as e:
-
-                st.error(
-                    f"エラーが発生しました: {e}"
-                )
-
-else:
-
-    st.info(
-        "先に「承認済みサプライヤーを取得」を押してください。"
-    )
+# 旧サプライヤー単体JAN検索は、自動巡回検索に統合しました。
