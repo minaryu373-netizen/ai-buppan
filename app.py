@@ -1331,8 +1331,99 @@ if st.button("🔌 NETSEA API接続テスト"):
             f"NETSEA APIトークンを読み込めませんでした: {e}"
         )
 # =========================
-# NETSEA JAN検索
+# NETSEA 承認済みサプライヤー取得
 # =========================
+
+st.subheader("🏪 承認済みサプライヤー")
+
+st.caption("NETSEA APIから、現在利用可能な承認済みサプライヤーを取得します。")
+
+if st.button("📥 承認済みサプライヤーを取得", type="primary"):
+
+    try:
+        netsea_token = st.secrets["NETSEA_API_TOKEN"]
+
+        headers = {
+            "Authorization": f"Bearer {netsea_token}"
+        }
+
+        supplier_url = "https://api.netsea.jp/buyer/v1/suppliers"
+
+        response = requests.get(
+            supplier_url,
+            headers=headers,
+            timeout=20
+        )
+
+        response.raise_for_status()
+        supplier_data = response.json()
+
+        suppliers = []
+
+        # NETSEA APIのレスポンス形式に対応
+        if isinstance(supplier_data, list):
+            for block in supplier_data:
+                if isinstance(block, dict):
+                    block_data = block.get("data", [])
+                    if isinstance(block_data, list):
+                        suppliers.extend(block_data)
+        elif isinstance(supplier_data, dict):
+            suppliers = supplier_data.get("data", [])
+
+        # 重複除去
+        unique_suppliers = []
+        seen_ids = set()
+
+        for supplier in suppliers:
+            if not isinstance(supplier, dict):
+                continue
+
+            supplier_id = supplier.get("id")
+            if supplier_id is None or supplier_id in seen_ids:
+                continue
+
+            seen_ids.add(supplier_id)
+            unique_suppliers.append(supplier)
+
+        st.session_state.netsea_suppliers = unique_suppliers
+        st.session_state.netsea_auto_results = []
+
+        if unique_suppliers:
+            st.success(
+                f"✅ {len(unique_suppliers)}社の承認済みサプライヤーを取得しました。"
+            )
+        else:
+            st.warning("承認済みサプライヤーが取得できませんでした。")
+
+    except requests.exceptions.HTTPError as e:
+        st.error(f"NETSEAサプライヤーAPIエラー: {e}")
+        try:
+            st.json(response.json())
+        except Exception:
+            pass
+
+    except Exception as e:
+        st.error(f"サプライヤー取得エラー: {e}")
+
+if st.session_state.get("netsea_suppliers"):
+    suppliers = st.session_state.netsea_suppliers
+
+    st.success(f"現在 {len(suppliers)}社のサプライヤーを読み込み済み")
+
+    supplier_preview = pd.DataFrame([
+        {
+            "サプライヤー": s.get("corp_name", ""),
+            "サプライヤーID": s.get("id", "")
+        }
+        for s in suppliers
+    ])
+
+    with st.expander("📋 取得したサプライヤー一覧を見る"):
+        st.dataframe(
+            supplier_preview,
+            use_container_width=True,
+            hide_index=True
+        )
 
 # =========================
 # NETSEA JAN自動検索
