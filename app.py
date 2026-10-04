@@ -1311,77 +1311,146 @@ if st.button("🔌 NETSEA API接続テスト"):
 # =========================
 
 # =========================
-# NETSEA JAN検索
+# NETSEA JAN自動検索
 # =========================
-
 st.divider()
+st.header("🤖 NETSEA JAN自動検索")
 
-st.header("🏪 NETSEA卸価格をJANで検索")
+if "netsea_suppliers" in st.session_state:
+    suppliers = st.session_state.netsea_suppliers
 
-# -------------------------
-# サプライヤー取得
-# -------------------------
+    jan_input = st.text_input(
+        "JANコード",
+        placeholder="例：4900000000000",
+        key="netsea_auto_jan"
+    )
 
-if st.button("🏢 承認済みサプライヤーを取得"):
+    max_suppliers = st.number_input(
+        "検索するサプライヤー数",
+        min_value=1,
+        max_value=100,
+        value=20,
+        step=1
+    )
 
-    try:
+    if st.button("🔎 NETSEA全自動JAN検索"):
 
-        netsea_token = st.secrets["NETSEA_API_TOKEN"]
-
-        headers = {
-            "Authorization": f"Bearer {netsea_token}"
-        }
-
-        supplier_url = "https://api.netsea.jp/buyer/v1/suppliers"
-
-        response = requests.get(
-            supplier_url,
-            headers=headers,
-            timeout=20
-        )
-
-        response.raise_for_status()
-
-        supplier_data = response.json()
-
-        suppliers = []
-
-        if isinstance(supplier_data, list):
-
-            for block in supplier_data:
-
-                if isinstance(block, dict):
-
-                    block_data = block.get("data", [])
-
-                    if isinstance(block_data, list):
-                        suppliers.extend(block_data)
-
-        elif isinstance(supplier_data, dict):
-
-            suppliers = supplier_data.get("data", [])
-
-        if suppliers:
-
-            st.session_state.netsea_suppliers = suppliers
-
-            st.success(
-                f"{len(suppliers)}社のサプライヤーを取得しました。"
-            )
+        if not jan_input:
+            st.warning("JANコードを入力してください。")
 
         else:
+            try:
+                netsea_token = st.secrets["NETSEA_API_TOKEN"]
+                headers = {
+                    "Authorization": f"Bearer {netsea_token}"
+                }
 
-            st.warning(
-                "承認済みサプライヤーが見つかりませんでした。"
-            )
+                item_url = "https://api.netsea.jp/buyer/v1/items"
 
-    except Exception as e:
+                found_items = []
 
-        st.error(
-            f"NETSEAサプライヤー取得エラー: {e}"
+                search_suppliers = suppliers[:int(max_suppliers)]
+
+                progress = st.progress(0)
+
+                for i, supplier in enumerate(search_suppliers):
+
+                    supplier_id = supplier.get("id")
+
+                    if not supplier_id:
+                        continue
+
+                    data = {
+                        "supplier_ids": str(supplier_id),
+                        "jan_code": jan_input.strip()
+                    }
+
+                    response = requests.post(
+                        item_url,
+                        headers=headers,
+                        data=data,
+                        timeout=20
+                    )
+
+                    response.raise_for_status()
+
+                    item_data = response.json()
+
+                    # NETSEAレスポンスを解析
+                    items = []
+
+                    if isinstance(item_data, list):
+                        for block in item_data:
+                            if isinstance(block, dict):
+                                block_data = block.get("data", [])
+                                if isinstance(block_data, list):
+                                    items.extend(block_data)
+
+                    elif isinstance(item_data, dict):
+                        items = item_data.get("data", [])
+
+                    # 商品を取得
+                    for item in items:
+
+                        sets = item.get("set", [])
+
+                        if not isinstance(sets, list):
+                            sets = [sets]
+
+                        for product_set in sets:
+
+                            if not isinstance(product_set, dict):
+                                continue
+
+                            found_items.append({
+                                "サプライヤー": supplier.get("corp_name", ""),
+                                "サプライヤーID": supplier_id,
+                                "商品名": item.get("product_name", ""),
+                                "JANコード": product_set.get("jan_code", ""),
+                                "仕入れ価格": product_set.get("price"),
+                                "商品URL": item.get("product_url", "")
+                            })
+
+                    progress.progress((i + 1) / len(search_suppliers))
+
+                st.session_state.netsea_auto_results = found_items
+
+                if found_items:
+                    st.success(
+                        f"NETSEA商品を{len(found_items)}件発見しました！"
+                    )
+                else:
+                    st.warning(
+                        f"{len(search_suppliers)}社を検索しましたが、商品が見つかりませんでした。"
+                    )
+
+            except Exception as e:
+                st.error(f"NETSEA自動検索エラー: {e}")
+
+    # 検索結果表示
+    if st.session_state.get("netsea_auto_results"):
+
+        result_df = pd.DataFrame(
+            st.session_state.netsea_auto_results
         )
 
+        st.write("### 🛒 NETSEA仕入れ候補")
 
+        st.dataframe(
+            result_df[
+                [
+                    "サプライヤー",
+                    "商品名",
+                    "JANコード",
+                    "仕入れ価格"
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
+
+else:
+    st.info("先に「承認済みサプライヤーを取得」を押してください。")
 # -------------------------
 # サプライヤー選択
 # -------------------------
